@@ -1,2 +1,2 @@
-print('Hello, Main');
+print('Hello, Version 2!');
 
