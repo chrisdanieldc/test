@@ -1,0 +1,29 @@
+name: CD - Clean Data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/raw/orders.csv"
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # Needed to commit cleaned file
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python remove_duplicates.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orders-clean
+          path: data/processed/orders_clean.csv
