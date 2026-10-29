@@ -1,3 +1,4 @@
 rule_id,rule_name,run_id,timestamp,input_file,output_file,rows_before,rows_after,duplicates_removed,status
 DQ-001,remove_duplicates,ab89b6a0-55af-4949-87b7-d7cf9cfd43e0,2026-10-29T18:29:22.387231,data/raw/orders.csv,data/processed/orders.csv,7,6,1,SUCCESS
 DQ-001,remove_duplicates,0ec7fc29-0e56-4cc6-84ea-0cba4d60d6c3,2026-10-29 18:39:45.612909,data/raw/orders.csv,data/processed/orders.csv,7,6,1,SUCCESS
+DQ-001,remove_duplicates,21cabc2e-77be-4d3e-b030-f5e36458db1e,1793282844.533853,data/raw/orders.csv,data/processed/orders.csv,7,6,1,SUCCESS
