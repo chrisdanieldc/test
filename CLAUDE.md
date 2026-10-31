@@ -1,107 +1,273 @@
-# Orders CSV Duplicate Removal - Simple Approach
+# Data Quality Pipeline - Development Log
 
-## Goal
-Remove duplicates from `data/raw/orders.csv` when CI/CD runs.
+##  Architecture
 
-## Current Data
-**File:** `data/raw/orders.csv`
-```csv
-order_id,customer,amount,order_date,country,status
-1,Alice,120.50,2026-01-05,in,paid
-2,Bob,,2026-01-06,US,paid
-3,Carol,80.00,2026-01-06,in,paid
-3,Carol,80.00,2026-01-06,in,paid  ← DUPLICATE
-4,Dave,-15.00,2026-01-07,UK,refunded
-5,Erin,200.00,2026-01-08,us,paid
-6,Frank,45.25,2026-01-08,IN,pending
 ```
+config/
+  └── rules/
+      └── remove_duplicates.yml    # Self-contained rule definitions
 
-**Identified Duplicates:**
-- Row 5 is exact duplicate of row 4 (order_id 3)
+engine/
+  ├── __init__.py
+  ├── rule_registry.py             # load_rules() function
+  ├── rule_executor.py             # execute_rule() function
+  └── audit_logger.py              # log_execution() function
 
-## What We Did
+data/
+  ├── raw/orders.csv               # Source data
+  ├── processed/orders.csv         # Cleaned data
+  └── logs/audit.csv               # Audit trail
 
-### ✅ Step 1: Manual Approach (COMPLETED)
-1. ✅ Created simple Python script `remove_duplicates.py`
-2. ✅ Reads CSV, removes exact duplicates, keeps first occurrence
-3. ✅ Saves cleaned version to `data/processed/orders_clean.csv`
-4. ✅ Tested manually - found and removed 1 duplicate!
-
-### ✅ Step 2: CI/CD Approach (COMPLETED)
-1. ✅ **CI (Pull Requests):** `.github/workflows/check-duplicates.yml` - Fails if duplicates exist
-2. ✅ **CD (Main branch):** `.github/workflows/clean-data.yml` - Auto-removes duplicates and commits
-
-### ✅ Step 3: Cleanup (COMPLETED)
-Deleted overcomplicated files:
-- ✅ `engine/` folder (rule engine - too complex)
-- ✅ `rules/` folder (registry system - unnecessary)
-- ✅ `tests/` folder (engine tests)
-- ✅ `requirements.txt` (unnecessary dependencies)
-- ✅ `.github/workflows/ci.yml` (complex CI)
-- ✅ `.github/workflows/cd.yml` (complex CD)
-
-Kept:
-- ✅ `data/raw/orders.csv` (source data)
-- ✅ `remove_duplicates.py` (simple script)
-- ✅ Simple CI/CD workflows
-
-## Current Structure
-```
-.
-├── CLAUDE.md                               # This file - tracks everything
-├── README.md                               # Simple instructions
-├── remove_duplicates.py                    # Script to remove duplicates
-├── data/
-│   ├── raw/
-│   │   └── orders.csv                      # Source data (may have duplicates)
-│   └── processed/
-│       └── orders_clean.csv                # Cleaned data (no duplicates)
-└── .github/workflows/
-    ├── check-duplicates.yml                # CI: Fails if duplicates found in PR
-    └── clean-data.yml                      # CD: Auto-cleans on main branch
+main.py                            # Simple orchestrator (35 lines)
+requirements.txt                   # pandas, pyyaml
 ```
 
 ## How It Works
 
-### Manual Usage
+### 1. Rule Definition (YAML)
+
+Each rule is a **self-contained YAML file** with all configuration:
+
+```yaml
+rule_id: DQ-001
+rule_name: remove_duplicates
+description: Remove duplicate rows from the input dataset.
+enabled: true
+
+source:
+  file: data/raw/orders.csv
+
+destination:
+  file: data/processed/orders.csv
+
+operation:
+  type: drop_duplicates
+
+parameters:
+  subset: null      # Which columns to check (null = all)
+  keep: first       # Which duplicate to keep
+```
+
+**Key insight:** Rule knows its source, destination, and operation - fully declarative!
+
+### 2. Engine Functions (Pure Functions)
+
+**`rule_registry.py`** - 26 lines
+```python
+def load_rules():
+    """Loads all .yml files from config/rules/"""
+    # Returns list of rule dictionaries
+```
+
+**`rule_executor.py`** - 81 lines
+```python
+def execute_rule(rule):
+    """
+    Reads source file, applies operation, saves to destination
+    Returns execution metadata (rows_before, rows_after, etc.)
+    """
+    # Supports: drop_duplicates (more operations can be added)
+```
+
+**`audit_logger.py`** - 21 lines
+```python
+def log_execution(audit_record):
+    """Appends execution record to data/logs/audit.csv"""
+```
+
+### 3. Main Orchestrator (Simple Loop)
+
+```python
+rules = load_rules()
+
+for rule in rules:
+    if not rule.get("enabled", False):
+        continue
+
+    try:
+        result = execute_rule(rule)
+        log_execution(result)
+        print(f"Executed: {rule['rule_name']}")
+    except Exception as e:
+        print(f"Failed: {rule['rule_name']} - {e}")
+```
+
+That's it! No classes, no complexity.
+
+## Adding a New Rule
+
+**Step 1:** Create YAML file (`config/rules/validate_amount.yml`)
+```yaml
+rule_id: DQ-002
+rule_name: validate_amount
+description: Ensure amount is positive
+enabled: true
+
+source:
+  file: data/processed/orders.csv
+
+destination:
+  file: data/processed/orders.csv
+
+operation:
+  type: filter_positive
+
+parameters:
+  column: amount
+  min_value: 0
+```
+
+**Step 2:** Add operation to `rule_executor.py`
+```python
+def execute_rule(rule):
+    # ... existing code ...
+
+    if operation == "drop_duplicates":
+        df = df.drop_duplicates(...)
+
+    elif operation == "filter_positive":  # Add this
+        column = parameters.get("column")
+        min_value = parameters.get("min_value", 0)
+        df = df[df[column] >= min_value]
+
+    else:
+        raise ValueError(f"Unsupported operation: {operation}")
+```
+
+**Step 3:** Run pipeline
 ```bash
-python3 remove_duplicates.py
-```
-- Reads `data/raw/orders.csv`
-- Removes duplicate rows (keeps first occurrence)
-- Writes to `data/processed/orders_clean.csv`
-- Exits with code 1 if duplicates found, 0 if clean
-
-### CI/CD Workflow
-1. **On Pull Request:** CI runs and checks for duplicates
-   - If duplicates exist → CI fails ❌
-   - If no duplicates → CI passes ✅
-
-2. **On Merge to Main:** CD runs automatically
-   - Removes any duplicates
-   - Commits cleaned file back to repo
-   - Creates downloadable artifact
-
-## Test Results (Manual Run)
-```
-============================================================
-Removing duplicates from orders.csv
-============================================================
-
-  Duplicate found (line 5): 3,Carol,80.00,2026-01-06,in,paid
-
-✓ Processed data/raw/orders.csv
-  Total rows (excluding header): 7
-  Duplicates removed: 1
-  Unique rows: 6
-  Output: data/processed/orders_clean.csv
-
-⚠️  Warning: Duplicates were found and removed!
+python main.py
 ```
 
-## Notes
-- **Simple:** Just removes exact duplicate rows, nothing fancy
-- **Keeps first:** First occurrence stays, subsequent duplicates removed
-- **No dependencies:** Pure Python, no pip packages needed
-- **Human readable:** Clear code that anyone can understand
-- **Automatic:** CI/CD handles it after merge to main
+Done! No need to touch main.py or other files.
+
+## Current Data
+
+**Source:** `data/raw/orders.csv`
+- 7 rows (1 duplicate found)
+- Duplicate: order_id 3 (Carol, 80.00)
+
+**After Processing:** `data/processed/orders.csv`
+- 6 rows (duplicate removed)
+- Added metadata: `rule_id`, `run_id`, `run_timestamp`
+
+## CI/CD
+
+**Workflow:** `.github/workflows/clean-data.yml`
+
+**Triggers:**
+- Push to main when `data/raw/orders.csv` changes
+- Manual dispatch
+
+**Steps:**
+1. Install dependencies: `pip install -r requirements.txt`
+2. Run pipeline: `python main.py`
+3. Commit cleaned data and audit log
+4. Upload artifact
+
+## Design Principles
+
+✅ **Simplicity First**
+- Functions, not classes
+- No inheritance, no abstractions
+- 35-line main.py
+
+✅ **Declarative Config**
+- Rules are self-contained YAML
+- Source/destination in config, not hardcoded
+- Easy to read and understand
+
+✅ **Functional Approach**
+- Pure functions with clear inputs/outputs
+- No global state
+- Easy to test
+
+✅ **Human Readable**
+- ~150 lines total engine code
+- No magic, no frameworks
+- Anyone can understand it
+
+## Key Decisions
+
+**Why functional instead of classes?**
+- Simpler, fewer lines of code
+- No need for object state
+- Easier to understand flow
+
+**Why source/destination in YAML?**
+- Rules are self-contained
+- Can process different files with same operation
+- More flexible
+
+**Why operation types?**
+- Easy to add new operations
+- Clear separation of what vs. how
+- Extensible without complexity
+
+**Why no unit tests yet?**
+- Keep it simple first
+- Add tests when needed
+- Can test functions easily (they're pure)
+
+## File Locations
+
+**Config:** `config/rules/*.yml`
+- Each rule is independent YAML file
+- Place in `config/rules/` directory
+- Loaded automatically by `load_rules()`
+
+**Engine:** `engine/*.py`
+- `rule_registry.py` - Discovers and loads rules
+- `rule_executor.py` - Executes operations on data
+- `audit_logger.py` - Logs execution history
+
+**Data:** `data/*`
+- `raw/` - Source data (input)
+- `processed/` - Cleaned data (output)
+- `logs/` - Audit trail (CSV)
+
+**Entry Point:** `main.py`
+- Simple 35-line orchestrator
+- Loads → Execute → Log → Print
+
+## Usage
+
+**Local execution:**
+```bash
+python main.py
+```
+
+**Output:**
+```
+Executed: remove_duplicates
+```
+
+**Check results:**
+- Cleaned data: `data/processed/orders.csv`
+- Audit log: `data/logs/audit.csv`
+
+## Dependencies
+
+```
+pandas>=2.0.0   # DataFrame operations
+pyyaml>=6.0     # YAML parsing
+```
+
+Install: `pip install -r requirements.txt`
+
+## Common Issues
+
+**Issue:** `load_rules()` returns empty list in notebook
+**Solution:** Don't use `~` in paths. Use relative path `"config/rules"` not `"~/Users/..."`
+
+**Issue:** Module not found errors
+**Solution:** Run from project root, install dependencies: `pip install -r requirements.txt`
+
+## Future Enhancements
+
+- [ ] Add more operations (filter, validate, transform)
+- [ ] Support multiple file formats (JSON, Excel)
+- [ ] Add dry-run mode
+- [ ] Generate execution reports
+- [ ] Add unit tests
+- [ ] Support rule dependencies (run in order)
