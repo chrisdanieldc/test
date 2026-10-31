@@ -23,10 +23,10 @@ def execute(df, parameters):
     if column:
         nulls_count = df[column].isnull().sum()
         df[column] = df[column].fillna(fill_value)
-        print(f"  ✓ Replaced {nulls_count} null value(s) in '{column}' with '{fill_value}'")
+        print(f"  Replaced {nulls_count} null value(s) in '{column}' with '{fill_value}'")
     else:
         nulls_count = df.isnull().sum().sum()
         df = df.fillna(fill_value)
-        print(f"  ✓ Replaced {nulls_count} null value(s) with '{fill_value}'")
+        print(f"  Replaced {nulls_count} null value(s) with '{fill_value}'")
 
     return df

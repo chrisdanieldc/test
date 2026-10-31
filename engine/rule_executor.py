@@ -54,10 +54,10 @@ def execute_rule(rule):
     df["run_id"] = run_id
     df["run_timestamp"] = timestamp
 
-    # Save processed data with timestamp
+    # Save processed data with timestamp and rule ID for uniqueness
     output_path = Path(output_file)
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file_timestamped = output_path.parent / f"{output_path.stem}_{timestamp_str}{output_path.suffix}"
+    output_file_timestamped = output_path.parent / f"{output_path.stem}_{rule_id}_{timestamp_str}{output_path.suffix}"
 
     os.makedirs(os.path.dirname(output_file_timestamped), exist_ok=True)
     df.to_csv(output_file_timestamped, index=False)

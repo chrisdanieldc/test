@@ -24,6 +24,6 @@ def execute(df, parameters):
     df = df.drop_duplicates(subset=subset, keep=keep)
     rows_after = len(df)
 
-    print(f"  ✓ Removed {rows_before - rows_after} duplicate row(s)")
+    print(f"  Removed {rows_before - rows_after} duplicate row(s)")
 
     return df
